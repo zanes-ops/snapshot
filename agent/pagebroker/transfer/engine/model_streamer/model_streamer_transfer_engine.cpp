@@ -59,8 +59,8 @@ Environment(const char* name)
 
 }  // namespace
 
-ModelStreamerTransferEngine::ModelStreamerTransferEngine(S3Config config)
-    : s3_options_(config.transfer), store_(std::move(config)), restore_(CreateRestore())
+ModelStreamerTransferEngine::ModelStreamerTransferEngine(S3Config config, ModelStreamerOptions model_streamer)
+    : s3_options_(config.transfer), store_(std::move(config)), model_streamer_(std::move(model_streamer)), restore_(CreateRestore())
 {
   ValidateS3Configuration();
   if (store_.config().store_id.empty() || store_.config().bucket.empty())
@@ -95,6 +95,7 @@ ModelStreamerTransferEngine::ArtifactStorage() const
 std::shared_ptr<ModelStreamerRestore>
 ModelStreamerTransferEngine::CreateRestore() const
 {
+  model_streamer_.ValidateEnvironment();
   const auto& connection = s3_options_.connection;
   return std::make_shared<ModelStreamerRestore>(
       ModelStreamerSessionOptions{connection.region, connection.endpoint, connection.access_key_id,

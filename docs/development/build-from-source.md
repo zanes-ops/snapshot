@@ -65,7 +65,8 @@ make -C agent/pagebroker test daemon \
 PageBroker uses Model Streamer for S3 reads into local CPU staging and needs no
 CUDA driver for these reads. Filesystem storage uses POSIX; Model Streamer does
 not support filesystem sources or direct transfers. Artifact-addressed broker
-operations are supplied by the S3 storage integration.
+operations are supplied by the S3 storage integration. Tune the reader through
+the optional [`--model-streamer-config` JSON file](../../agent/pagebroker/MODEL_STREAMER.md).
 
 Native sessions admit at most eight submissions and target 10 GB of submitted
 bytes; one larger file runs alone. Admission closes on the first completed
