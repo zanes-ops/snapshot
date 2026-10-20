@@ -1503,7 +1503,7 @@ TEST_F(BrokerTest, MetadataIsExplicitlyUnsupportedWithoutCreatingTransaction)
   const auto rejected = broker().HandleRequest(request);
   ASSERT_TRUE(rejected.has_failure());
   EXPECT_EQ(rejected.failure().code(), Failure::INVALID_REQUEST);
-  EXPECT_EQ(rejected.failure().message(), "artifact metadata retrieval is not implemented");
+  EXPECT_EQ(rejected.failure().message(), "configured I/O engine not found");
   EXPECT_EQ(rejected.request_id(), request.request_id());
   EXPECT_EQ(rejected.transaction_id(), request.transaction_id());
 

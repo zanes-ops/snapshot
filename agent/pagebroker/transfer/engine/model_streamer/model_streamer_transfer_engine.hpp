@@ -6,28 +6,68 @@
 #include <memory>
 #include <mutex>
 
+#include "s3_config.hpp"
+#include "transfer/s3/s3_storage_backend.hpp"
+
 #include "model_streamer_restore.hpp"
 #include "transfer/engine/transfer_engine.hpp"
 
 namespace snapshot::pagebroker {
-// Stages prepared S3 read plans. Artifact preparation and publication are supplied
-// by the S3 storage integration; unsupported operations use the base contract.
 class ModelStreamerTransferEngine final : public TransferEngine {
  public:
-  explicit ModelStreamerTransferEngine(ModelStreamerSessionOptions options = {},
-      std::chrono::milliseconds restore_timeout = std::chrono::hours(2));
+  // Binds artifact operations to the configured S3 store.
+  explicit ModelStreamerTransferEngine(S3Config config);
 
+  // Identifies the Model Streamer transfer implementation.
   IoEngine type() const override;
 
-  // Streams S3 objects into transaction-owned local staging.
+  // Delegates source validation and planning to the configured storage backend.
+  PreparedRestore PrepareRestore(const StorageBackend& source, Cancellation cancellation = {},
+      const PublishedArtifact* artifact = nullptr, bool metadata_only = false,
+      TransferMode mode = TransferMode::Staged) const override;
+
+  // Streams prepared S3 objects into owned local staging.
   RestoreAccess StageRestore(PreparedRestore preparation, const Path& destination,
       Cancellation cancellation = {}) const override;
 
+  // Selects local capture for a staged S3 checkpoint.
+  Path PrepareCheckpoint(const StorageBackend& destination, const Path& staging_directory,
+      const std::string& transaction_id, TransferMode mode = TransferMode::Staged,
+      const PublishedArtifact* artifact = nullptr, Cancellation cancellation = {}) const override;
+
+  // Validates the destination through the configured storage backend.
+  void ValidateCheckpointDestination(const StorageBackend& destination,
+      const PublishedArtifact* artifact = nullptr, Cancellation cancellation = {}) const override;
+
+  // Scans local checkpoint output before publication admission.
+  RestorePlan InspectCheckpoint(const Path& source, const PublishedArtifact* artifact = nullptr,
+      Cancellation cancellation = {}) const override;
+
+  // Delegates checkpoint publication and retry state to the storage backend.
+  void PublishCheckpoint(const Path& source, const StorageBackend& destination, RestorePlan plan,
+      CheckpointPublication* publication = nullptr, Cancellation cancellation = {},
+      TransferMode mode = TransferMode::Staged) const override;
+
+  // Resolves a logical artifact target in the configured S3 store.
+  PublishedArtifact ResolveArtifactTarget(const ArtifactTarget& target) const override;
+
+  // Validates the store identity and handle of an S3 publication descriptor.
+  void ValidateArtifact(const PublishedArtifact& artifact) const override;
+
  private:
+  // Checks that upload and restore use consistent S3 connection settings.
+  void ValidateS3Configuration() const;
+
+  // Returns the configured artifact backend after validating its settings.
+  const S3StorageBackend& ArtifactStorage() const;
+
+  // Creates a coordinator for native restore submissions.
   std::shared_ptr<ModelStreamerRestore> CreateRestore() const;
+
+  // Reuses a healthy coordinator or replaces a failed native session.
   std::shared_ptr<ModelStreamerRestore> AcquireRestore() const;
-  const ModelStreamerSessionOptions options_;
-  const std::chrono::milliseconds restore_timeout_;
+  const S3TransferOptions s3_options_;
+  S3StorageBackend store_;
   mutable std::mutex restore_mutex_;
   mutable std::shared_ptr<ModelStreamerRestore> restore_;
 };

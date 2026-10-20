@@ -62,11 +62,10 @@ make -C agent/pagebroker test daemon \
   MODEL_STREAMER_LIB_DIR=/tmp/snapshot-model-streamer-sdk/lib
 ```
 
-The Model Streamer transfer engine supports S3 reads into local CPU staging
-without a CUDA driver. The broker currently registers only POSIX filesystem
-transfers; routing artifact-addressed requests through Model Streamer is added
-by the S3 storage integration. Model Streamer does not support filesystem
-sources or direct transfers.
+PageBroker uses Model Streamer for S3 reads into local CPU staging and needs no
+CUDA driver for these reads. Filesystem storage uses POSIX; Model Streamer does
+not support filesystem sources or direct transfers. Artifact-addressed broker
+operations are supplied by the S3 storage integration.
 
 Native sessions admit at most eight submissions and target 10 GB of submitted
 bytes; one larger file runs alone. Admission closes on the first completed
@@ -121,6 +120,8 @@ sign-off.
 ### PageBroker native S3 upload and restore tests
 
 These tests exercise CRT-managed AWS SDK uploads and native Model Streamer S3 reads.
+See the [S3 storage contract](../../agent/pagebroker/S3.md) for configuration,
+ownership, integrity and failure behavior.
 
 Local native builds require a C++20 compiler, protobuf, GoogleTest, OpenSSL,
 the pinned AWS SDK for C++ S3 CRT component, and both pinned Streamer libraries.
@@ -149,7 +150,7 @@ make -C agent/pagebroker test daemon \
   AWS_SDK_PREFIX=/path/to/aws-sdk
 ```
 
-This runs filesystem, session-recovery, and S3 client tests. These tests need
+This runs filesystem, artifact-identity, session-recovery, and S3 client tests. These tests need
 no S3 endpoint or credentials.
 
 To exercise S3 in the distroless runtime, build the dedicated image target;
@@ -185,6 +186,27 @@ the endpoint when that CA is missing. Moto does not enforce IAM policies.
 For a locally built executable, use `make -C agent/pagebroker s3-test` with the
 Python dependencies installed. The runner also accepts `--binary`; both paths
 use the same disposable local service.
+
+### PageBroker S3 checkpoint tests
+
+Build the `s3-test` image and install the Python dependencies as above. The image
+also contains the production PageBroker daemon. Build the Go test client and
+run the local checkpoint fixture:
+
+```bash
+go test -c ./agent/internal/pagebroker -o /tmp/pagebroker-checkpoint-client.test
+/tmp/pagebroker-s3-tests/bin/python agent/pagebroker/tests/checkpoint_integration.py \
+  --image local/pagebroker:s3-test --client /tmp/pagebroker-checkpoint-client.test
+/tmp/pagebroker-s3-tests/bin/python agent/pagebroker/tests/checkpoint_integration.py --tls \
+  --image local/pagebroker:s3-test --client /tmp/pagebroker-checkpoint-client.test
+```
+
+The fixture runs native daemons against disposable Moto storage using fake
+credentials. It exercises the real Go client, checkpoint publication, full
+and metadata-only restore, lost responses, retries without payload rewrites,
+active Abort, staging ownership, expiry, restart and startup credential
+resolution. It validates protocol behavior and credential selection; deployment
+integration and production IAM policies require separate validation.
 
 The PageBroker image build also runs `make -C agent/pagebroker s3-lifetime-test`.
 This checks the pinned native SDK's CPU/S3 buffer lifetime with a controlled local
