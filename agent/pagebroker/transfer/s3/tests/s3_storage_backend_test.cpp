@@ -13,10 +13,21 @@ namespace snapshot::pagebroker {
 namespace {
 namespace fs = std::filesystem;
 
+S3Config
+TestConfig()
+{
+  S3Config config;
+  config.store_id = "test-store";
+  config.bucket = "test-bucket";
+  config.transfer.connection.endpoint = "https://unused.invalid";
+  config.transfer.connection.region = "us-east-1";
+  return config;
+}
+
 TEST(S3StorageBackendTest, RejectsDirectOperationsBeforeRemoteIO)
 {
   test::TemporaryDirectory root;
-  const auto config = ParseS3Config(R"({"storeId":"test-store","endpoint":"https://unused.invalid","region":"us-east-1","bucket":"test-bucket"})");
+  const auto config = TestConfig();
   S3StorageBackend backend(config);
   ArtifactTarget target;
   target.set_store_id(config.store_id);
@@ -31,7 +42,7 @@ TEST(S3StorageBackendTest, RejectsDirectOperationsBeforeRemoteIO)
 
 TEST(S3StorageBackendTest, BindsIdentityBeforeStorageIO)
 {
-  const auto config = ParseS3Config(R"({"storeId":"test-store","endpoint":"https://unused.invalid","region":"us-east-1","bucket":"test-bucket"})");
+  const auto config = TestConfig();
   S3StorageBackend backend(config);
   ArtifactTarget target;
   target.set_store_id(config.store_id);
@@ -63,7 +74,7 @@ TEST(S3StorageBackendTest, BindsIdentityBeforeStorageIO)
 
 TEST(S3StorageBackendTest, SeparatesIdentityTupleBoundaries)
 {
-  const auto config = ParseS3Config(R"({"storeId":"test-store","endpoint":"https://unused.invalid","region":"us-east-1","bucket":"test-bucket"})");
+  const auto config = TestConfig();
   S3StorageBackend backend(config);
   ArtifactTarget target;
   target.set_store_id(config.store_id);
@@ -78,7 +89,7 @@ TEST(S3StorageBackendTest, SeparatesIdentityTupleBoundaries)
 TEST(S3StorageBackendTest, PreflightsCompleteCaptureWithoutStorageIO)
 {
   test::TemporaryDirectory root;
-  const auto config = ParseS3Config(R"({"storeId":"test-store","endpoint":"https://unused.invalid","region":"us-east-1","bucket":"test-bucket"})");
+  const auto config = TestConfig();
   S3StorageBackend backend(config);
   PublishedArtifact destination;
   destination.set_store_id("test-store");
@@ -94,7 +105,7 @@ TEST(S3StorageBackendTest, PreflightsCompleteCaptureWithoutStorageIO)
 
 TEST(S3StorageBackendTest, IndexedCheckpointsRequireAConfiguredBucket)
 {
-  auto config = ParseS3Config(R"({"storeId":"test-store","endpoint":"https://unused.invalid","region":"us-east-1","bucket":"test-bucket"})");
+  auto config = TestConfig();
   config.bucket.clear();
   S3StorageBackend backend(config);
   PublishedArtifact checkpoint;
@@ -106,7 +117,8 @@ TEST(S3StorageBackendTest, OwnsConfigurationAndUsesItsPrefix)
 {
   test::TemporaryDirectory root;
   std::ofstream(root.path() / "manifest.yaml") << "version: 1\n";
-  auto config = ParseS3Config(R"({"storeId":"test-store","endpoint":"https://unused.invalid","region":"us-east-1","bucket":"test-bucket","prefix":"snapshots/nested"})");
+  auto config = TestConfig();
+  config.prefix = "snapshots/nested";
   S3StorageBackend backend(config);
   config.bucket = "changed-bucket";
   config.prefix = "changed-prefix";
