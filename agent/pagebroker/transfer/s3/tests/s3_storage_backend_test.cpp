@@ -24,12 +24,8 @@ TEST(S3StorageBackendTest, RejectsDirectOperationsBeforeRemoteIO)
   target.mutable_artifact()->set_container_name("main");
   const auto artifact = backend.ResolveTarget(target);
   const auto output = root.path() / "unused";
-  CheckpointPublication publication{artifact, {}, false};
   EXPECT_THROW(backend.PrepareRestore(artifact, false, TransferMode::Direct, {}), std::invalid_argument);
   EXPECT_THROW(backend.PrepareCheckpoint(artifact, output, TransferMode::Direct, {}), std::invalid_argument);
-  EXPECT_THROW(backend.PublishCheckpoint(output, {}, publication, TransferMode::Direct, {}), std::invalid_argument);
-  EXPECT_TRUE(publication.pending_index.empty());
-  EXPECT_FALSE(publication.published);
   EXPECT_FALSE(fs::exists(output));
 }
 

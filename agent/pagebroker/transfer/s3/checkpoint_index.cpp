@@ -13,6 +13,14 @@ namespace {
 using Json = nlohmann::json;
 namespace fs = std::filesystem;
 
+constexpr char kFormatKey[] = "format";
+constexpr char kRootModeKey[] = "rootMode";
+constexpr char kDirectoriesKey[] = "directories";
+constexpr char kFilesKey[] = "files";
+constexpr char kPathKey[] = "path";
+constexpr char kModeKey[] = "mode";
+constexpr char kSizeKey[] = "size";
+
 void
 Fields(const Json& value, std::initializer_list<const char*> fields)
 {
@@ -63,9 +71,9 @@ CheckpointEntriesAreOrdered(const RestorePlan& plan)
 bool
 HasValidIndexEntries(const Json& value)
 {
-  if (!value.at("directories").is_array() || !value.at("files").is_array())
+  if (!value.at(kDirectoriesKey).is_array() || !value.at(kFilesKey).is_array())
     return false;
-  return value.at("directories").size() + value.at("files").size() <= kMaxCheckpointEntries;
+  return value.at(kDirectoriesKey).size() + value.at(kFilesKey).size() <= kMaxCheckpointEntries;
 }
 
 }  // namespace
@@ -115,13 +123,14 @@ std::string
 SerializeCheckpointIndex(const RestorePlan& plan)
 {
   (void)ValidateCheckpointPlan(plan);
-  Json value{{"format", kCheckpointFormat}, {"rootMode", static_cast<unsigned>(plan.root_permissions)},
-             {"directories", Json::array()}, {"files", Json::array()}};
+  Json value{{kFormatKey, kCheckpointFormat}, {kRootModeKey, static_cast<unsigned>(plan.root_permissions)},
+             {kDirectoriesKey, Json::array()}, {kFilesKey, Json::array()}};
   for (const auto& directory : plan.directories)
-    value["directories"].push_back({{"path", directory.relative_path.generic_string()}, {"mode", static_cast<unsigned>(directory.permissions)}});
+    value[kDirectoriesKey].push_back({{kPathKey, directory.relative_path.generic_string()},
+        {kModeKey, static_cast<unsigned>(directory.permissions)}});
   for (const auto& file : plan.files)
-    value["files"].push_back({{"path", file.relative_path.generic_string()}, {"mode", static_cast<unsigned>(file.permissions)},
-                              {"size", file.size_bytes}});
+    value[kFilesKey].push_back({{kPathKey, file.relative_path.generic_string()},
+        {kModeKey, static_cast<unsigned>(file.permissions)}, {kSizeKey, file.size_bytes}});
   const auto text = value.dump();
   if (text.size() > kMaxIndexBytes)
     throw std::invalid_argument("checkpoint index exceeds size limit");
@@ -133,21 +142,22 @@ ParseCheckpointIndex(std::string_view text)
 {
   try {
     const auto value = utils::ParseJson(text, kMaxIndexBytes);
-    Fields(value, {"format", "rootMode", "directories", "files"});
-    if (value.at("format") != kCheckpointFormat)
+    Fields(value, {kFormatKey, kRootModeKey, kDirectoriesKey, kFilesKey});
+    if (value.at(kFormatKey) != kCheckpointFormat)
       throw CheckpointError(Failure::UNSUPPORTED_ARTIFACT, "unsupported checkpoint index format");
     RestorePlan plan;
-    plan.root_permissions = static_cast<fs::perms>(utils::Unsigned(value.at("rootMode"), 0777));
+    plan.root_permissions = static_cast<fs::perms>(utils::Unsigned(value.at(kRootModeKey), 0777));
     if (!HasValidIndexEntries(value))
       throw std::invalid_argument("invalid checkpoint entry count");
-    for (const auto& directory : value.at("directories")) {
-      Fields(directory, {"path", "mode"});
-      plan.directories.push_back({directory.at("path").get<std::string>(), static_cast<fs::perms>(utils::Unsigned(directory.at("mode"), 0777))});
+    for (const auto& directory : value.at(kDirectoriesKey)) {
+      Fields(directory, {kPathKey, kModeKey});
+      plan.directories.push_back({directory.at(kPathKey).get<std::string>(),
+          static_cast<fs::perms>(utils::Unsigned(directory.at(kModeKey), 0777))});
     }
-    for (const auto& file : value.at("files")) {
-      Fields(file, {"path", "mode", "size"});
-      plan.files.push_back({"", file.at("path").get<std::string>(), utils::Unsigned(file.at("size"), kMaxCheckpointBytes),
-          static_cast<fs::perms>(utils::Unsigned(file.at("mode"), 0777))});
+    for (const auto& file : value.at(kFilesKey)) {
+      Fields(file, {kPathKey, kModeKey, kSizeKey});
+      plan.files.push_back({"", file.at(kPathKey).get<std::string>(), utils::Unsigned(file.at(kSizeKey), kMaxCheckpointBytes),
+          static_cast<fs::perms>(utils::Unsigned(file.at(kModeKey), 0777))});
     }
     (void)ValidateCheckpointPlan(plan);
     return plan;

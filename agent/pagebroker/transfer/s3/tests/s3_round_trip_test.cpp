@@ -103,7 +103,7 @@ class S3RoundTripTest : public ::testing::Test {
   {
     CheckpointPublication publication{Artifact(id), {}, false};
     auto plan = storage.InspectCheckpoint(source, publication.artifact, {});
-    storage.PublishCheckpoint(source, std::move(plan), publication, TransferMode::Staged, {});
+    storage.PublishCheckpoint(source, std::move(plan), publication, {});
     EXPECT_TRUE(publication.published);
     EXPECT_FALSE(publication.pending_index.empty());
     return storage.LoadRestorePlan(publication.artifact, false, {});
@@ -540,7 +540,7 @@ TEST_F(S3RoundTripTest, PreservesPartialTreeFailureAndReusesBackend)
     EXPECT_EQ(error.cleanup_state, S3CleanupState::NOT_NEEDED);
   }
   EXPECT_TRUE(Barrier("engine-partial", Artifact().artifact_handle() + "/data/data"));
-  EXPECT_FALSE(storage.CheckpointExists(Artifact(), {}));
+  EXPECT_NO_THROW(storage.PrepareCheckpoint(Artifact(), {}));
   const auto plan = PublishTree(storage, source, 'b');
   EXPECT_NO_THROW(restore_reader.Stage(plan, temporary_.path() / "partial-recovered"));
 }

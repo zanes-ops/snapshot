@@ -229,7 +229,9 @@ ModelStreamerTransferEngine::PublishCheckpoint(const Path& source, const Storage
   if (!publication || destination.has_filesystem())
     throw std::invalid_argument("S3 checkpoint requires an artifact destination");
   try {
-    ArtifactStorage().PublishCheckpoint(source, std::move(plan), *publication, mode, cancellation);
+    if (mode == TransferMode::Direct)
+      throw std::invalid_argument("S3 checkpoints require staging");
+    ArtifactStorage().PublishCheckpoint(source, std::move(plan), *publication, cancellation);
   }
   catch (...) {
     RethrowS3TransferError(std::current_exception(), cancellation);

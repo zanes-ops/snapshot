@@ -31,8 +31,6 @@ class S3StorageBackend {
   PublishedArtifact ResolveTarget(const ArtifactTarget& target) const;
   // Checks descriptor identity and handle syntax against this store.
   void ValidateCheckpoint(const PublishedArtifact& storage) const;
-  // Checks whether a bounded index object exists; does not validate its contents.
-  bool CheckpointExists(const PublishedArtifact& storage, Cancellation cancellation) const;
   // Rejects an already published index. This preflight does not reserve the target;
   // callers must retain exclusive ownership through payload upload and publication.
   void PrepareCheckpoint(const PublishedArtifact& storage, Cancellation cancellation) const;
@@ -46,7 +44,7 @@ class S3StorageBackend {
 
   // Publishes payloads and the final index while retaining uncertain retry state.
   void PublishCheckpoint(const Path& source, RestorePlan plan, CheckpointPublication& publication,
-      TransferMode mode, Cancellation cancellation) const;
+      Cancellation cancellation) const;
 
   // Validates the local tree and index/part limits before remote writes. Assigns
   // payload locations for the inspected tree.

@@ -111,17 +111,11 @@ S3StorageBackend::Object(const PublishedArtifact& storage, const std::string& ke
   return {config_.bucket, prefix + storage.artifact_handle() + "/" + key};
 }
 
-bool
-S3StorageBackend::CheckpointExists(const PublishedArtifact& storage, Cancellation cancellation) const
-{
-  const auto object = Object(storage, "index.json");
-  return Client().Get(object, kMaxIndexBytes, cancellation).has_value();
-}
-
 void
 S3StorageBackend::PrepareCheckpoint(const PublishedArtifact& storage, Cancellation cancellation) const
 {
-  if (CheckpointExists(storage, cancellation))
+  const auto object = Object(storage, "index.json");
+  if (Client().Get(object, kMaxIndexBytes, cancellation).has_value())
     throw CheckpointError(Failure::TRANSACTION_CONFLICT, "checkpoint is already published; recover using its ID");
 }
 
@@ -236,10 +230,8 @@ S3StorageBackend::PrepareRestore(const PublishedArtifact& storage, bool metadata
 
 void
 S3StorageBackend::PublishCheckpoint(const Path& source, RestorePlan plan, CheckpointPublication& publication,
-    TransferMode mode, Cancellation cancellation) const
+    Cancellation cancellation) const
 {
-  if (mode == TransferMode::Direct)
-    throw std::invalid_argument("S3 checkpoints require staging");
   if (publication.pending_index.empty()) {
     PrepareCheckpoint(publication.artifact, cancellation);
     publication.pending_index = UploadCheckpointPayloads(source, std::move(plan), cancellation);
